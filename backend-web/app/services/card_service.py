@@ -42,6 +42,7 @@ class CardService:
         page_size: int = 20,
         search: str = "",
         card_type: str = "",
+        visibility: str = "",
     ) -> Dict[str, Any]:
         """分页获取卡券列表
         
@@ -51,6 +52,7 @@ class CardService:
             page_size: 每页数量
             search: 搜索关键词（匹配名称或描述）
             card_type: 卡券类型过滤（api/text/data/image）
+            visibility: 卡券归属过滤（all/public/private）
             
         Returns:
             包含分页数据的字典：{list, total, page, page_size, total_pages}
@@ -69,6 +71,12 @@ class CardService:
             )
         if card_type:
             base_conditions.append(Card.type == card_type)
+        
+        # 卡券归属过滤
+        if visibility == "public":
+            base_conditions.append(Card.is_public == True)
+        elif visibility == "private":
+            base_conditions.append(Card.is_public == False)
         
         # 查询总数
         count_stmt = select(func.count(Card.id))

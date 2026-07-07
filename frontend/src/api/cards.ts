@@ -48,6 +48,7 @@ export interface CardQueryParams {
   page_size?: number
   search?: string
   type?: string
+  visibility?: string  // 卡券归属：all/public/private
 }
 
 // 卡券分页响应
@@ -66,6 +67,7 @@ export const getCards = async (params?: CardQueryParams): Promise<CardPaginatedR
   if (params?.page_size) query.set('page_size', String(params.page_size))
   if (params?.search) query.set('search', params.search)
   if (params?.type) query.set('type', params.type)
+  if (params?.visibility) query.set('visibility', params.visibility)
   const qs = query.toString()
   const url = qs ? `${CARD_PREFIX}?${qs}` : CARD_PREFIX
   return get<CardPaginatedResult>(url)

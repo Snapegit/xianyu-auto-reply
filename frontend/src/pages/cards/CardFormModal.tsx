@@ -584,7 +584,7 @@ export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFor
                   placeholder="例如：9.90"
                 />
               </div>
-              <div className="flex items-end">
+              <div className="flex items-end gap-4">
                 <label className="flex items-center gap-2 h-[42px] cursor-pointer">
                   <input
                     type="checkbox"
@@ -601,10 +601,7 @@ export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFor
                   />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">是否可对接</span>
                 </label>
-              </div>
-              {/* 公共卡券 - 仅管理员可见 */}
-              {isAdmin && (
-                <div className="flex items-end">
+                {isAdmin && (
                   <label className="flex items-center gap-2 h-[42px] cursor-pointer">
                     <input
                       type="checkbox"
@@ -614,8 +611,8 @@ export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFor
                     />
                     <span className="text-sm font-medium text-gray-900 dark:text-white">设为公共</span>
                   </label>
-                </div>
-              )}
+                )}
+              </div>
             </div>
 
             {/* 对接类型 - 勾选可对接时显示 */}

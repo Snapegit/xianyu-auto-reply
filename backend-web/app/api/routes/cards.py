@@ -167,6 +167,7 @@ async def get_cards(
     page_size: int = Query(default=20, ge=1, le=9999, description="每页数量"),
     search: str = Query(default="", description="搜索关键词（名称或描述）"),
     card_type: str = Query(default="", alias="type", description="卡券类型过滤"),
+    visibility: str = Query(default="", description="卡券归属：all/public/private"),
     current_user: User = Depends(deps.get_current_active_user),
     card_service: CardService = Depends(get_card_service),
 ):
@@ -178,6 +179,7 @@ async def get_cards(
         page_size=page_size,
         search=search,
         card_type=card_type,
+        visibility=visibility,
     )
     return result
 

@@ -49,9 +49,11 @@ export function Cards() {
   // 已应用的查询条件（仅在点「查询」或回车时更新，用于实际发起请求）
   const [searchText, setSearchText] = useState('')
   const [typeFilter, setTypeFilter] = useState<string>('')
+  const [visibilityFilter, setVisibilityFilter] = useState<string>('')
   // 草稿状态：承接输入框/下拉的即时输入，不触发查询
   const [searchDraft, setSearchDraft] = useState('')
   const [typeDraft, setTypeDraft] = useState<string>('')
+  const [visibilityDraft, setVisibilityDraft] = useState<string>('')
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set())
   const [deleteConfirm, setDeleteConfirm] = useState<{ open: boolean; card: CardData | null }>({ open: false, card: null })
   const [batchDeleteConfirm, setBatchDeleteConfirm] = useState(false)
@@ -73,12 +75,13 @@ export function Cards() {
   const [pageSize, setPageSize] = useState(20)
 
   // 加载卡券列表（后端分页）
-  const loadCards = async (p?: number, ps?: number, s?: string, t?: string) => {
+  const loadCards = async (p?: number, ps?: number, s?: string, t?: string, v?: string) => {
     if (!_hasHydrated || !isAuthenticated || !token) return
     const currentPage = p ?? page
     const currentPageSize = ps ?? pageSize
     const currentSearch = s ?? searchText
     const currentType = t ?? typeFilter
+    const currentVisibility = v ?? visibilityFilter
     try {
       setLoading(true)
       const result: CardPaginatedResult = await getCards({
@@ -86,6 +89,7 @@ export function Cards() {
         page_size: currentPageSize,
         search: currentSearch || undefined,
         type: currentType || undefined,
+        visibility: currentVisibility || undefined,
       })
       setCards(result.list || [])
       setTotal(result.total || 0)
@@ -105,18 +109,21 @@ export function Cards() {
   const handleSearch = () => {
     setSearchText(searchDraft)
     setTypeFilter(typeDraft)
+    setVisibilityFilter(visibilityDraft)
     setPage(1)
-    loadCards(1, pageSize, searchDraft, typeDraft)
+    loadCards(1, pageSize, searchDraft, typeDraft, visibilityDraft)
   }
 
   // 重置筛选：清空草稿与已应用条件，并从第 1 页重新加载
   const handleResetFilter = () => {
     setSearchDraft('')
     setTypeDraft('')
+    setVisibilityDraft('')
     setSearchText('')
     setTypeFilter('')
+    setVisibilityFilter('')
     setPage(1)
-    loadCards(1, pageSize, '', '')
+    loadCards(1, pageSize, '', '', '')
   }
 
   // 当前页数据即后端返回的列表
@@ -283,12 +290,24 @@ export function Cards() {
                 <option value="image">图片卡券</option>
               </select>
             </div>
+            <div className="input-group">
+              <label className="input-label">卡券归属</label>
+              <select
+                value={visibilityDraft}
+                onChange={e => setVisibilityDraft(e.target.value)}
+                className="input-ios"
+              >
+                <option value="">全部</option>
+                <option value="public">公共</option>
+                <option value="private">私人</option>
+              </select>
+            </div>
             <div className="flex items-end gap-2 ml-auto">
               <button onClick={handleSearch} className="btn-ios-primary">
                 <Search className="w-4 h-4" />
                 查询
               </button>
-              {(searchDraft || typeDraft) && (
+              {(searchDraft || typeDraft || visibilityDraft) && (
                 <button onClick={handleResetFilter} className="btn-ios-secondary text-red-500">
                   重置筛选
                 </button>
