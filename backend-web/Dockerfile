@@ -13,7 +13,7 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl ca-certificates gcc \
+RUN apt-get update && apt-get install -y curl ca-certificates gcc unzip \
     fonts-dejavu-core fonts-liberation \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
@@ -30,7 +30,16 @@ deps = tomllib.load(open('/app/backend-web/pyproject.toml','rb')).get('project',
 open('/tmp/requirements.txt','w').write('\n'.join(deps))" && \
     pip install --no-cache-dir -r /tmp/requirements.txt
 
-RUN python -m playwright install --with-deps chromium
+# 离线安装 Chromium（避免从 CDN 下载）
+COPY deploy/chromium/chrome-linux64.zip /tmp/
+COPY deploy/chromium/chrome-headless-shell-linux64.zip /tmp/
+RUN unzip /tmp/chrome-linux64.zip -d /ms-playwright/chromium-1228/ && \
+    touch /ms-playwright/chromium-1228/INSTALLATION_COMPLETE && \
+    touch /ms-playwright/chromium-1228/DEPENDENCIES_VALIDATED && \
+    unzip /tmp/chrome-headless-shell-linux64.zip -d /ms-playwright/chromium_headless_shell-1228/ && \
+    touch /ms-playwright/chromium_headless_shell-1228/INSTALLATION_COMPLETE && \
+    touch /ms-playwright/chromium_headless_shell-1228/DEPENDENCIES_VALIDATED && \
+    rm /tmp/*.zip
 
 # 创建日志目录
 RUN mkdir -p /app/backend-web/logs /app/static/uploads
