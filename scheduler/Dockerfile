@@ -32,7 +32,8 @@ open('/tmp/requirements.txt','w').write('\n'.join(deps))" && \
 # 离线安装 Chromium（避免从 CDN 下载）
 COPY deploy/chromium/chrome-linux64.zip /tmp/
 COPY deploy/chromium/chrome-headless-shell-linux64.zip /tmp/
-RUN unzip /tmp/chrome-linux64.zip -d /ms-playwright/chromium-1228/ && \
+RUN mkdir -p /ms-playwright/chromium-1228 /ms-playwright/chromium_headless_shell-1228 && \
+    unzip /tmp/chrome-linux64.zip -d /ms-playwright/chromium-1228/ && \
     touch /ms-playwright/chromium-1228/INSTALLATION_COMPLETE && \
     touch /ms-playwright/chromium-1228/DEPENDENCIES_VALIDATED && \
     unzip /tmp/chrome-headless-shell-linux64.zip -d /ms-playwright/chromium_headless_shell-1228/ && \
