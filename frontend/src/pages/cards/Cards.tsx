@@ -40,7 +40,8 @@ const cardTypeBadge: Record<string, string> = {
 
 export function Cards() {
   const { addToast } = useUIStore()
-  const { isAuthenticated, token, _hasHydrated } = useAuthStore()
+  const { isAuthenticated, token, user, _hasHydrated } = useAuthStore()
+  const isAdmin = user?.is_admin === true
   const [loading, setLoading] = useState(true)
   const [cards, setCards] = useState<CardData[]>([])
   const [total, setTotal] = useState(0)
@@ -368,9 +369,14 @@ export function Cards() {
                       {/* 名称列：主名称 + 可选的规格/备注副标题 */}
                       <td className="align-top min-w-[200px] max-w-[280px]">
                         <div className="flex flex-col gap-0.5">
-                          <span className="font-medium text-slate-900 dark:text-slate-100 break-words" title={card.name}>
-                            {card.name}
-                          </span>
+                          <div className="flex items-center gap-1">
+                            <span className="font-medium text-slate-900 dark:text-slate-100 break-words" title={card.name}>
+                              {card.name}
+                            </span>
+                            {card.is_public && (
+                              <span className="badge-info text-[10px] px-1 py-0">公共</span>
+                            )}
+                          </div>
                           {card.is_multi_spec && (card.spec_name || card.spec_value) && (
                             <span className="text-[11px] text-blue-600 dark:text-blue-400">
                               规格：{card.spec_name} = {card.spec_value}
@@ -487,45 +493,50 @@ export function Cards() {
                           >
                             <Eye className="w-4 h-4 text-blue-500" />
                           </button>
-                          <button
-                            onClick={() => openEditModal(card)}
-                            className="table-action-btn hover:!bg-blue-50"
-                            title="编辑"
-                          >
-                            <Edit2 className="w-4 h-4 text-blue-500" />
-                          </button>
-                          <button
-                            onClick={() => openCopyModal(card)}
-                            className="table-action-btn hover:!bg-cyan-50"
-                            title="复制"
-                          >
-                            <Copy className="w-4 h-4 text-cyan-500" />
-                          </button>
-                          <button
-                            onClick={() => { setRelationReadonly(false); setRelationCard(card) }}
-                            className="table-action-btn hover:!bg-green-50"
-                            title="管理关联商品"
-                          >
-                            <Link className="w-4 h-4 text-green-500" />
-                          </button>
-                          <button
-                            onClick={() => handleToggleEnabled(card)}
-                            className="table-action-btn hover:!bg-blue-50"
-                            title={card.enabled ? '禁用' : '启用'}
-                          >
-                            {card.enabled ? (
-                              <Power className="w-4 h-4 text-green-500" />
-                            ) : (
-                              <PowerOff className="w-4 h-4 text-gray-400" />
-                            )}
-                          </button>
-                          <button
-                            onClick={() => setDeleteConfirm({ open: true, card })}
-                            className="table-action-btn hover:!bg-red-50"
-                            title="删除"
-                          >
-                            <Trash2 className="w-4 h-4 text-red-500" />
-                          </button>
+                          {/* 公共卡券：非管理员不可编辑/删除 */}
+                          {(!card.is_public || isAdmin) && (
+                            <>
+                              <button
+                                onClick={() => openEditModal(card)}
+                                className="table-action-btn hover:!bg-blue-50"
+                                title="编辑"
+                              >
+                                <Edit2 className="w-4 h-4 text-blue-500" />
+                              </button>
+                              <button
+                                onClick={() => openCopyModal(card)}
+                                className="table-action-btn hover:!bg-cyan-50"
+                                title="复制"
+                              >
+                                <Copy className="w-4 h-4 text-cyan-500" />
+                              </button>
+                              <button
+                                onClick={() => { setRelationReadonly(false); setRelationCard(card) }}
+                                className="table-action-btn hover:!bg-green-50"
+                                title="管理关联商品"
+                              >
+                                <Link className="w-4 h-4 text-green-500" />
+                              </button>
+                              <button
+                                onClick={() => handleToggleEnabled(card)}
+                                className="table-action-btn hover:!bg-blue-50"
+                                title={card.enabled ? '禁用' : '启用'}
+                              >
+                                {card.enabled ? (
+                                  <Power className="w-4 h-4 text-green-500" />
+                                ) : (
+                                  <PowerOff className="w-4 h-4 text-gray-400" />
+                                )}
+                              </button>
+                              <button
+                                onClick={() => setDeleteConfirm({ open: true, card })}
+                                className="table-action-btn hover:!bg-red-50"
+                                title="删除"
+                              >
+                                <Trash2 className="w-4 h-4 text-red-500" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>

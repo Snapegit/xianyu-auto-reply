@@ -495,6 +495,7 @@ class DatabaseInitializer:
                 delivery_count INT DEFAULT 0 COMMENT '发货次数',
                 price VARCHAR(32) COMMENT '对接价格',
                 is_dockable TINYINT(1) DEFAULT 0 COMMENT '是否可对接',
+                is_public TINYINT(1) DEFAULT 0 COMMENT '是否公共卡券（所有用户可见可绑定）',
                 fee_payer VARCHAR(32) COMMENT '手续费支付方式：distributor-分销主支付，dealer-分销商支付',
                 is_multi_spec TINYINT(1) DEFAULT 0 COMMENT '是否多规格',
                 spec_name VARCHAR(255) COMMENT '规格名称',

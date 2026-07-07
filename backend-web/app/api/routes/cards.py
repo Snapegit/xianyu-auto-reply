@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api import deps
 from common.models.user import User
 from common.schemas.common import ApiResponse
-from common.utils.auth_scope import resolve_owner_scope
+from common.utils.auth_scope import resolve_owner_scope, is_admin_user
 from common.utils.local_image_upload import ImageUploadError, save_uploaded_image
 from app.services.card_service import CardService
 
@@ -31,6 +31,7 @@ class CardCreate(BaseModel):
     delay_seconds: Optional[int] = 0
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = False  # 是否可对接
+    is_public: Optional[bool] = False  # 是否公共卡券（所有用户可见可绑定）
     fee_payer: Optional[str] = None  # 手续费支付方式：distributor/dealer
     min_price: Optional[str] = None  # 最低售价
     dock_visibility: Optional[str] = None  # 对接可见性：public/dealer_only
@@ -53,6 +54,7 @@ class CardUpdate(BaseModel):
     delay_seconds: Optional[int] = None
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = None  # 是否可对接
+    is_public: Optional[bool] = None  # 是否公共卡券（所有用户可见可绑定）
     fee_payer: Optional[str] = None  # 手续费支付方式：distributor/dealer
     min_price: Optional[str] = None  # 最低售价
     dock_visibility: Optional[str] = None  # 对接可见性：public/dealer_only
@@ -80,6 +82,7 @@ class BatchSaveCardRequest(BaseModel):
     delay_seconds: Optional[int] = 0
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = False  # 是否可对接
+    is_public: Optional[bool] = False  # 是否公共卡券（所有用户可见可绑定）
     fee_payer: Optional[str] = None  # 手续费支付方式：distributor/dealer
     min_price: Optional[str] = None  # 最低售价
     dock_visibility: Optional[str] = None  # 对接可见性：public/dealer_only
@@ -219,6 +222,7 @@ async def create_card(
             delay_seconds=card_data.delay_seconds or 0,
             price=card_data.price,
             is_dockable=card_data.is_dockable or False,
+            is_public=card_data.is_public or False,
             fee_payer=card_data.fee_payer if card_data.is_dockable else None,
             min_price=card_data.min_price if card_data.is_dockable else None,
             dock_visibility=card_data.dock_visibility if card_data.is_dockable else None,
@@ -254,6 +258,12 @@ async def update_card(
     card_service: CardService = Depends(get_card_service),
 ):
     """更新卡券"""
+    # 检查是否为公共卡券（非管理员不可编辑）
+    if not is_admin_user(current_user):
+        card = await card_service.get_card_by_id(card_id, user_id=None)
+        if card and card.get("is_public"):
+            raise HTTPException(status_code=403, detail="公共卡券不可编辑")
+
     # 多规格 / 图片数量 / 手续费支付方式 校验（与 create_card 共用同一 helper）
     err = _validate_card_payload(card_data)
     if err:
@@ -279,6 +289,12 @@ async def delete_card(
     card_service: CardService = Depends(get_card_service),
 ):
     """删除卡券"""
+    # 检查是否为公共卡券（非管理员不可删除）
+    if not is_admin_user(current_user):
+        card = await card_service.get_card_by_id(card_id, user_id=None)
+        if card and card.get("is_public"):
+            raise HTTPException(status_code=403, detail="公共卡券不可删除")
+
     success = await card_service.delete_card(card_id, current_user.id)
     if success:
         return {"message": "卡券删除成功"}
@@ -315,6 +331,13 @@ async def batch_delete_cards(
     card_service: CardService = Depends(get_card_service),
 ):
     """批量删除卡券"""
+    # 非管理员不可删除公共卡券
+    if not is_admin_user(current_user):
+        for card_id in request.ids:
+            card = await card_service.get_card_by_id(card_id, user_id=None)
+            if card and card.get("is_public"):
+                raise HTTPException(status_code=403, detail=f"公共卡券（ID: {card_id}）不可删除")
+
     success_count = await card_service.batch_delete_cards(request.ids, current_user.id)
     
     return ApiResponse(
@@ -415,6 +438,7 @@ async def batch_save_card(
             delay_seconds=request.delay_seconds or 0,
             price=request.price,
             is_dockable=request.is_dockable or False,
+            is_public=request.is_public or False,
             fee_payer=request.fee_payer if request.is_dockable else None,
             min_price=request.min_price if request.is_dockable else None,
             dock_visibility=request.dock_visibility if request.is_dockable else None,

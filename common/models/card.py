@@ -34,6 +34,7 @@ class Card(Base):
     delivery_count: Mapped[int] = mapped_column(Integer, default=0, comment='发货次数')
     price: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, comment='对接价格')
     is_dockable: Mapped[bool] = mapped_column(Boolean, default=False, comment='是否可对接')
+    is_public: Mapped[bool] = mapped_column(Boolean, default=False, comment='是否公共卡券（所有用户可见可绑定）')
     fee_payer: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, comment='手续费支付方式：distributor-分销主支付，dealer-分销商支付')
     min_price: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, comment='最低售价')
     dock_visibility: Mapped[Optional[str]] = mapped_column(String(32), nullable=True, comment='对接可见性：public-所有人可见，dealer_only-仅分销商可见')

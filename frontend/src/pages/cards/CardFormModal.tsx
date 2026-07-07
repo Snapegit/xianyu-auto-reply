@@ -9,6 +9,7 @@ import type { FormEvent, ChangeEvent } from 'react'
 import { X, Loader2, ImagePlus } from 'lucide-react'
 import { updateCard, createCard, uploadCardImage, type CardData } from '@/api/cards'
 import { useUIStore } from '@/store/uiStore'
+import { useAuthStore } from '@/store/authStore'
 import { Select } from '@/components/common/Select'
 import { getSystemSettings } from '@/api/settings'
 
@@ -55,6 +56,7 @@ interface CardFormData {
   delaySeconds: number
   price: string
   isDockable: boolean
+  isPublic: boolean
   feePayer: string
   minPrice: string
   dockVisibility: string
@@ -98,6 +100,7 @@ export function cardToFormData(card: CardData): CardFormData {
     delaySeconds: card.delay_seconds || 0,
     price: card.price || '',
     isDockable: card.is_dockable || false,
+    isPublic: card.is_public || false,
     feePayer: card.fee_payer || '',
     minPrice: card.min_price || '',
     dockVisibility: card.dock_visibility || 'public',
@@ -131,6 +134,7 @@ export const emptyCardFormData: CardFormData = {
   delaySeconds: 0,
   price: '',
   isDockable: false,
+  isPublic: false,
   feePayer: '',
   minPrice: '',
   dockVisibility: 'public',
@@ -142,6 +146,8 @@ export const emptyCardFormData: CardFormData = {
 
 export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFormModalProps) {
   const { addToast } = useUIStore()
+  const { user } = useAuthStore()
+  const isAdmin = user?.is_admin === true
   const [formData, setFormData] = useState<CardFormData>(initialData)
   const [saving, setSaving] = useState(false)
   const [feeRate, setFeeRate] = useState('')
@@ -281,6 +287,7 @@ export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFor
         delay_seconds: formData.delaySeconds,
         price: formData.price.trim() || null,
         is_dockable: formData.isDockable,
+        is_public: isAdmin ? formData.isPublic : undefined,
         fee_payer: formData.isDockable ? formData.feePayer : null,
         min_price: formData.isDockable ? (formData.minPrice.trim() || null) : null,
         dock_visibility: formData.isDockable ? formData.dockVisibility : null,
@@ -595,6 +602,20 @@ export function CardFormModal({ cardId, initialData, onClose, onSaved }: CardFor
                   <span className="text-sm font-medium text-gray-900 dark:text-white">是否可对接</span>
                 </label>
               </div>
+              {/* 公共卡券 - 仅管理员可见 */}
+              {isAdmin && (
+                <div className="flex items-end">
+                  <label className="flex items-center gap-2 h-[42px] cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={formData.isPublic}
+                      onChange={(e) => updateField('isPublic', e.target.checked)}
+                      className="w-4 h-4 rounded border-gray-300"
+                    />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">设为公共</span>
+                  </label>
+                </div>
+              )}
             </div>
 
             {/* 对接类型 - 勾选可对接时显示 */}

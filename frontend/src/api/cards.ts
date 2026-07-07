@@ -15,6 +15,7 @@ export interface CardData {
   delivery_count?: number  // 发货次数
   price?: string | null     // 对接价格
   is_dockable?: boolean    // 是否可对接
+  is_public?: boolean      // 是否公共卡券（所有用户可见可绑定）
   fee_payer?: string | null  // 手续费支付方式：distributor/dealer
   min_price?: string | null  // 最低售价
   dock_visibility?: string | null  // 对接可见性：public-所有人可见，dealer_only-仅分销商可见

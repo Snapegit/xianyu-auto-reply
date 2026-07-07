@@ -285,6 +285,9 @@ export function ItemCardRelationModal({ itemId, itemName, onClose, onSaved }: It
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-medium text-gray-900 dark:text-white truncate">
                               {card.name}
+                              {card.is_public && (
+                                <span className="inline-block px-1 py-0.5 ml-1 rounded text-[10px] font-medium bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400">公共</span>
+                              )}
                             </p>
                             <p className="text-xs text-gray-500 truncate">
                               {card.source === 'own' ? (

@@ -29,7 +29,8 @@ class CardService:
         """
         stmt = select(Card)
         if user_id is not None:
-            stmt = stmt.where(Card.user_id == user_id)
+            # 非管理员：显示自己的卡券 + 公共卡券
+            stmt = stmt.where(or_(Card.user_id == user_id, Card.is_public == True))
         result = await self.session.execute(stmt)
         cards = result.scalars().all()
         return [self._card_to_dict_simple(card) for card in cards]
@@ -57,7 +58,8 @@ class CardService:
         # 构建基础查询条件
         base_conditions = []
         if user_id is not None:
-            base_conditions.append(Card.user_id == user_id)
+            # 非管理员：显示自己的卡券 + 公共卡券
+            base_conditions.append(or_(Card.user_id == user_id, Card.is_public == True))
         if search:
             base_conditions.append(
                 or_(
@@ -221,7 +223,8 @@ class CardService:
         """
         stmt = select(Card).options(selectinload(Card.item_relations)).where(Card.id == card_id)
         if user_id is not None:
-            stmt = stmt.where(Card.user_id == user_id)
+            # 非管理员：可查看自己的卡券 + 公共卡券
+            stmt = stmt.where(or_(Card.user_id == user_id, Card.is_public == True))
         result = await self.session.execute(stmt)
         card = result.scalars().first()
         return self._card_to_dict(card) if card else None
@@ -460,6 +463,7 @@ class CardService:
         delay_seconds: int = 0,
         price: Optional[str] = None,
         is_dockable: bool = False,
+        is_public: bool = False,
         fee_payer: Optional[str] = None,
         min_price: Optional[str] = None,
         dock_visibility: Optional[str] = None,
@@ -499,6 +503,7 @@ class CardService:
             delay_seconds=delay_seconds,
             price=price,
             is_dockable=is_dockable,
+            is_public=is_public,
             fee_payer=fee_payer,
             min_price=min_price,
             dock_visibility=dock_visibility,
@@ -602,6 +607,7 @@ class CardService:
         delay_seconds: int = 0,
         price: Optional[str] = None,
         is_dockable: bool = False,
+        is_public: bool = False,
         fee_payer: Optional[str] = None,
         min_price: Optional[str] = None,
         dock_visibility: Optional[str] = None,
@@ -635,6 +641,7 @@ class CardService:
             delay_seconds=delay_seconds,
             price=price,
             is_dockable=is_dockable,
+            is_public=is_public,
             fee_payer=fee_payer,
             min_price=min_price,
             dock_visibility=dock_visibility,
@@ -741,6 +748,7 @@ class CardService:
             "delivery_count": card.delivery_count,
             "price": card.price,
             "is_dockable": card.is_dockable,
+            "is_public": card.is_public,
             "fee_payer": card.fee_payer,
             "min_price": card.min_price,
             "dock_visibility": card.dock_visibility,
@@ -785,6 +793,7 @@ class CardService:
             "delivery_count": card.delivery_count,
             "price": card.price,
             "is_dockable": card.is_dockable,
+            "is_public": card.is_public,
             "fee_payer": card.fee_payer,
             "min_price": card.min_price,
             "dock_visibility": card.dock_visibility,
