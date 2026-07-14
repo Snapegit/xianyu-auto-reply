@@ -35,6 +35,7 @@ interface UnifiedCardItem {
   spec_value?: string
   enabled?: boolean
   price?: string | null
+  is_public?: boolean
   uniqueKey: string  // 'own_{cardId}' | 'dock_{dockRecordId}'
 }
 
@@ -67,6 +68,7 @@ const toUnified = (sc: SelectableCard): UnifiedCardItem => ({
   spec_value: sc.spec_value,
   enabled: sc.enabled,
   price: sc.price ?? null,
+  is_public: sc.is_public,
   uniqueKey: sc.unique_key,
 })
 

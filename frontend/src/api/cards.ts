@@ -99,6 +99,7 @@ export interface SelectableCard {
   spec_value?: string
   enabled?: boolean
   price?: string | null
+  is_public?: boolean
   unique_key: string
 }
 
