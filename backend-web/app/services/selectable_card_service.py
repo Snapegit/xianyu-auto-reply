@@ -30,6 +30,7 @@ class SelectableCardService:
     _OWN_LITE_COLUMNS = (
         Card.id, Card.name, Card.type, Card.is_multi_spec,
         Card.spec_name, Card.spec_value, Card.enabled, Card.price,
+        Card.is_public,
     )
 
     def __init__(self, session: AsyncSession):
@@ -38,10 +39,10 @@ class SelectableCardService:
     # ---------- 查询条件构建 ----------
 
     def _own_conditions(self, user_id: Optional[int], search: str) -> List[Any]:
-        """构建自有卡券查询条件（owner 作用域 + 搜索：名称/类型/ID）"""
+        """构建自有卡券查询条件（owner 作用域 + 公共卡券 + 搜索：名称/类型/ID）"""
         conds: List[Any] = []
         if user_id is not None:
-            conds.append(Card.user_id == user_id)
+            conds.append(or_(Card.user_id == user_id, Card.is_public == True))
         if search:
             kw = f"%{search}%"
             conds.append(
@@ -132,6 +133,7 @@ class SelectableCardService:
             "spec_value": card.spec_value,
             "enabled": card.enabled,
             "price": card.price,
+            "is_public": card.is_public,
             "unique_key": f"own_{card.id}",
         }
 
