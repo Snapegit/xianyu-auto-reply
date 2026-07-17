@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import select, func, case, and_, update
+from sqlalchemy import select, func, case, and_, or_, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.models.risk_control_log import XYRiskControlLog
@@ -106,12 +106,13 @@ class RiskControlLogService:
         end_date: Optional[str] = None,
         processing_status: Optional[str] = None,
         call_type: Optional[str] = None,
+        call_user: Optional[str] = None,
         limit: int = 100,
         offset: int = 0,
     ) -> tuple[list[dict], int]:
         """
         查询风控日志列表
-        
+
         Args:
             owner_id: 所有者ID筛选
             account_identifier: 账号ID筛选
@@ -119,6 +120,7 @@ class RiskControlLogService:
             end_date: 结束日期（格式：YYYY-MM-DD）
             processing_status: 处理状态筛选（success/failed/processing）
             call_type: 调用类型筛选（local-本机/remote-远程）
+            call_user: 调用用户筛选（模糊匹配，仅远程调用记录该字段）
             limit: 每页数量
             offset: 偏移量
             
@@ -158,6 +160,13 @@ class RiskControlLogService:
         # 调用类型筛选（local-本机/remote-远程）
         if call_type:
             filters.append(XYRiskControlLog.call_type == call_type)
+
+        # 调用用户筛选（模糊匹配，autoescape 转义 %/_ 通配符；
+        # 仅远程调用记录该字段，本机记录为 NULL 自然不命中）
+        if call_user and call_user.strip():
+            filters.append(
+                XYRiskControlLog.call_user.contains(call_user.strip(), autoescape=True)
+            )
 
         logs, total = await execute_paginated_with_filters(
             self.session,
@@ -199,6 +208,8 @@ class RiskControlLogService:
         说明：
         - 处理中（'processing'）与已取消（'cancelled'）的记录不计入成功率统计，分子和分母都排除，
           成功率仅统计已出结果（success/failed）的记录；处理中记录以总数、本机数、远程数单独返回。
+        - 「验证链接已过期」的失败记录（processing_result 含"验证链接已过期"）同样不计入成功率，
+          这类失败是调用方传入的链接失效导致，需刷新URL重试，不反映过滑块本身的成败。
         - 远程口径为 call_type == 'remote'；其余（含 'local' 与 NULL）一律计入本机，
           保证 本机数 + 远程数 == 总数，三个维度各自使用自己的分母，避免分母用错。
         - 普通用户仅统计自己的账号数据，管理员统计全部数据（由 owner_id 控制）。
@@ -224,8 +235,18 @@ class RiskControlLogService:
         is_success = XYRiskControlLog.processing_status == "success"
         is_remote = XYRiskControlLog.call_type == "remote"
         is_processing = XYRiskControlLog.processing_status == "processing"
-        # 成功率口径：仅统计已出结果的记录，排除处理中（processing）与已取消（cancelled）
-        is_settled = XYRiskControlLog.processing_status.notin_(["processing", "cancelled"])
+        # 验证链接已过期的失败记录：链接失效属于调用方问题，不反映过滑块本身成败，排除出成功率
+        # （processing_result 为 NULL 时 LIKE 结果为 NULL，需显式放行 NULL 记录）
+        not_url_expired = or_(
+            XYRiskControlLog.processing_result.is_(None),
+            XYRiskControlLog.processing_result.notlike("%验证链接已过期%"),
+        )
+        # 成功率口径：仅统计已出结果的记录，排除处理中（processing）、已取消（cancelled）
+        # 与「验证链接已过期」的失败记录
+        is_settled = and_(
+            XYRiskControlLog.processing_status.notin_(["processing", "cancelled"]),
+            not_url_expired,
+        )
 
         # 一次查询用条件聚合得到：总数、成功数、远程总数、远程成功数、处理中数、远程处理中数
         # 成功率相关的 total/success/remote_* 均只计入已出结果（settled）记录，
