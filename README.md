@@ -270,6 +270,7 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 pip install -e .
 python -m playwright install chromium
+python -m patchright install chromium
 python main.py
 ```
 
@@ -281,6 +282,7 @@ python -m venv .venv
 # Linux/macOS: source .venv/bin/activate
 pip install -e .
 python -m playwright install chromium
+python -m patchright install chromium
 python main.py
 ```
 
@@ -395,7 +397,9 @@ npm run dev
 
 ### 登录或发布时报浏览器缺失？
 
-在对应 Python 环境执行：`python -m playwright install chromium`。Docker 环境依赖各服务 Dockerfile 内已安装的浏览器。
+Backend-Web 和 WebSocket 需要在对应 Python 环境依次执行：
+`python -m playwright install chromium`、`python -m patchright install chromium`。
+Docker 环境依赖各服务 Dockerfile 内已安装的浏览器。
 
 ### Docker 部署端口冲突？
 
@@ -441,3 +445,6 @@ curl -fsSL https://xy-update.zhinianboke.com/deploy.sh | sed 's/\r$//' | bash
 感谢这些优秀的开源项目为本项目的开发提供了宝贵的参考和启发！
 
 
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=zhinianboke/xianyu-auto-reply&type=Date)](https://www.star-history.com/#zhinianboke/xianyu-auto-reply&Date)
