@@ -30,17 +30,9 @@ deps = tomllib.load(open('/app/backend-web/pyproject.toml','rb')).get('project',
 open('/tmp/requirements.txt','w').write('\n'.join(deps))" && \
     pip install --no-cache-dir -r /tmp/requirements.txt
 
-# 离线安装 Chromium（避免从 CDN 下载）
-COPY deploy/chromium/chrome-linux64.zip /tmp/
-COPY deploy/chromium/chrome-headless-shell-linux64.zip /tmp/
-RUN mkdir -p /ms-playwright/chromium-1228 /ms-playwright/chromium_headless_shell-1228 && \
-    unzip /tmp/chrome-linux64.zip -d /ms-playwright/chromium-1228/ && \
-    touch /ms-playwright/chromium-1228/INSTALLATION_COMPLETE && \
-    touch /ms-playwright/chromium-1228/DEPENDENCIES_VALIDATED && \
-    unzip /tmp/chrome-headless-shell-linux64.zip -d /ms-playwright/chromium_headless_shell-1228/ && \
-    touch /ms-playwright/chromium_headless_shell-1228/INSTALLATION_COMPLETE && \
-    touch /ms-playwright/chromium_headless_shell-1228/DEPENDENCIES_VALIDATED && \
-    rm /tmp/*.zip
+# 在线安装 Chromium（构建时通过本机代理加速下载，见 deploy/RULES.md）
+RUN python -m playwright install --with-deps chromium
+RUN python -m patchright install --with-deps chromium
 
 # 创建日志目录
 RUN mkdir -p /app/backend-web/logs /app/static/uploads
