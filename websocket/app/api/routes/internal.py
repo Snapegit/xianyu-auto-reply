@@ -9,8 +9,10 @@ WebSocket服务内部API路由
 from __future__ import annotations
 
 import asyncio
+import socket
 
 from fastapi import APIRouter, HTTPException
+from loguru import logger
 from pydantic import BaseModel
 
 from common.services.account_cookie_service import merge_account_cookie_fields
@@ -37,6 +39,72 @@ from common.services.token_api_mode import load_token_api_mode
 from common.utils.xianyu_utils import trans_cookies
 
 router = APIRouter(prefix="/internal", tags=["internal"])
+
+
+async def _load_remote_captcha_config(device_id: str) -> dict | None:
+    """读取全局"远程过滑块"配置（system_settings），供本机 token 续期等路径复用。
+
+    Returns:
+        dict {url, secret, pass_cookies, device_id} | None。未配置、远程地址指向本机，
+        或读取失败时返回 None（此时由各引擎按本机逻辑处理）。
+    """
+    try:
+        from common.db.session import async_session_maker
+        from common.models.system_setting import SystemSetting
+        from sqlalchemy import select
+
+        async with async_session_maker() as session:
+            rows = (
+                await session.execute(
+                    select(SystemSetting).where(
+                        SystemSetting.key.in_(
+                            [
+                                "captcha.remote_service_url",
+                                "captcha.remote_secret_key",
+                                "captcha.remote_pass_cookies",
+                            ]
+                        )
+                    )
+                )
+            ).scalars().all()
+        m = {r.key: (r.value or "") for r in rows}
+        url = (m.get("captcha.remote_service_url") or "").strip()
+        secret = (m.get("captcha.remote_secret_key") or "").strip()
+        pass_cookies = (m.get("captcha.remote_pass_cookies") or "").strip().lower() == "true"
+        # 远程地址指向本机（回环或本机网卡 IP）时忽略，避免"远程地址指回本机"造成无限递归。
+        if url and secret and not _is_local_url(url):
+            return {
+                "url": url,
+                "secret": secret,
+                "pass_cookies": pass_cookies,
+                "device_id": (device_id or "") if pass_cookies else "",
+            }
+    except Exception as e:
+        logger.warning(f"读取远程过滑块配置失败（走本机逻辑）: {e}")
+    return None
+
+
+def _is_local_url(url: str) -> bool:
+    """判断远程过滑块 URL 是否指向本机（回环或本机网卡 IP）。"""
+    from urllib.parse import urlparse
+
+    try:
+        host = (urlparse(url).hostname or "").strip().lower()
+    except Exception:
+        return False
+    if host in ("localhost", "127.0.0.1", "::1"):
+        return True
+    local_ips: set[str] = set()
+    try:
+        local_ips = {
+            info[4][0]
+            for info in socket.getaddrinfo(socket.gethostname(), None, socket.AF_INET)
+            if info[0] == socket.AF_INET
+        }
+        local_ips.add(socket.gethostbyname(socket.gethostname()))
+    except Exception:
+        pass
+    return host in local_ips
 
 
 class StartAccountRequest(BaseModel):
@@ -685,11 +753,17 @@ async def solve_captcha(request: SolveCaptchaRequest):
             url_provider = _remote_url_provider
             logger.info(f"【过滑块接口】account_id={safe_id} 已携带 Cookie，启用链接过期自动重取")
 
+        # 读取全局"远程过滑块"配置：配置了则优先走远程接口（远程超时才回退本机），
+        # 与账号运行时 cookie_token_manager 的远程优先逻辑保持一致。
+        # 本机 token 续期等场景借此复用"远程真人鼠标"，避免在无桌面环境的 Linux 上假成功。
+        # 远程地址若指向本机（回环或本机网卡 IP）则返回 None，防止无限递归。
+        remote_config = await _load_remote_captcha_config(device_id)
+
         # 被调用接口不信任请求体中的 call_type，所有请求固定进入远程桶，避免伪装成本地权重。
         # 远程内部默认无 Cookie 优先；任一队首等待满70秒后按最早入队优先。
         weight_class = "remote_cookie" if existing_cookies_str else "remote"
         slider_args = (
-            safe_id, url, True, False, timeout, existing_cookies_str, url_provider,
+            safe_id, url, True, False, timeout, existing_cookies_str, url_provider, remote_config,
         )
         selected_slider_mode = await refresh_slider_mode_from_database()
         if selected_slider_mode == SLIDER_MODE_REAL_MOUSE:
