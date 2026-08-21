@@ -440,6 +440,7 @@ class DatabaseInitializer:
                 scheduled_rate TINYINT(1) NOT NULL DEFAULT 0 COMMENT '定时补评价开关',
                 auto_polish TINYINT(1) NOT NULL DEFAULT 0 COMMENT '商品自动擦亮开关',
                 confirm_before_send TINYINT(1) NOT NULL DEFAULT 0 COMMENT '发货成功再发卡券开关',
+                only_send_card TINYINT(1) NOT NULL DEFAULT 0 COMMENT '只发卡券不确认发货开关',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
                 INDEX idx_owner_id (owner_id),
@@ -517,6 +518,7 @@ class DatabaseInitializer:
                 receiver_phone VARCHAR(32) COMMENT '收货人手机号',
                 receiver_address VARCHAR(512) COMMENT '收货地址',
                 delivery_fail_reason VARCHAR(2000) COMMENT '发货失败原因',
+                card_only_delivered TINYINT(1) NOT NULL DEFAULT 0 COMMENT '仅发卡券流程是否已处理',
                 item_snapshot JSON COMMENT '商品快照',
                 metadata JSON COMMENT '元数据',
                 source VARCHAR(32) COMMENT '数据来源：fetch_xianyu-获取闲鱼订单按钮',
@@ -1569,7 +1571,9 @@ class DatabaseInitializer:
                 INDEX idx_lmi_dm_send (order_status, is_dm_sent, ordered_at),
                 INDEX idx_lmi_order_pending (is_ordered, order_attempts),
                 INDEX idx_lmi_item_ordered (item_id, is_ordered),
-                INDEX idx_lmi_owner_publish (owner_id, publish_time)
+                INDEX idx_lmi_owner_publish (owner_id, publish_time),
+                INDEX idx_lmi_owner_order_pending (owner_id, is_ordered, created_at, order_attempts),
+                INDEX idx_lmi_owner_task_created (owner_id, monitor_task_id, created_at)
             ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='商品监控采集商品信息表';
         """,
 
@@ -1827,6 +1831,7 @@ class DatabaseInitializer:
             ("auto_polish", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '商品自动擦亮开关'", "scheduled_rate"),
             ("confirm_before_send", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '发货成功再发卡券开关'", "auto_polish"),
             ("send_before_confirm", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '卡券发送成功再确认发货开关'", "confirm_before_send"),
+            ("only_send_card", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '只发卡券不确认发货开关'", "send_before_confirm"),
             ("auto_red_flower", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '自动求小红花开关'", "send_before_confirm"),
             ("delivery_disabled", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '禁止发货开关'", "auto_red_flower"),
             ("delivery_disabled_reason", "VARCHAR(500) DEFAULT NULL COMMENT '禁止发货原因'", "delivery_disabled"),
@@ -1839,6 +1844,7 @@ class DatabaseInitializer:
             ("refund_cancel_timeout", "INT DEFAULT 60 COMMENT '退款订单注销超时时间(秒)'", "refund_cancel_url"),
         ],
         "xy_orders": [
+            ("card_only_delivered", "TINYINT(1) NOT NULL DEFAULT 0 COMMENT '仅发卡券流程是否已处理'", "delivery_fail_reason"),
             ("is_bargain", "TINYINT(1) DEFAULT 0 COMMENT '是否小刀'", "account_name"),
             ("chat_id", "VARCHAR(64) COMMENT '聊天会话ID'", "buyer_id"),
             ("buyer_fish_nick", "VARCHAR(120) COMMENT '买家闲鱼昵称（明文）'", "buyer_nick"),
@@ -2167,6 +2173,25 @@ class DatabaseInitializer:
                         logger.info(f"✓ xy_cards: {card_col} 字段已升级为 LONGTEXT")
                 except Exception as e:
                     logger.warning(f"✗ xy_cards {card_col} 字段迁移失败: {e}")
+
+            # 归一化历史冲突配置：只发卡券模式优先于自动确认及确认顺序设置。
+            try:
+                result = await conn.execute(text("""
+                    UPDATE xy_accounts
+                    SET auto_confirm = 0,
+                        confirm_before_send = 0,
+                        send_before_confirm = 0
+                    WHERE only_send_card = 1
+                      AND (
+                          auto_confirm <> 0
+                          OR confirm_before_send <> 0
+                          OR send_before_confirm <> 0
+                      )
+                """))
+                if result.rowcount:
+                    logger.info(f"✓ xy_accounts: 已修复 {result.rowcount} 条只发卡券冲突配置")
+            except Exception as e:
+                logger.warning(f"✗ xy_accounts 发货开关冲突配置修复失败: {e}")
 
     async def migrate_indexes(self):
         """检查并迁移索引（如更新 UNIQUE KEY 等）"""
@@ -3163,6 +3188,13 @@ class DatabaseInitializer:
                 ("idx_lmi_item_ordered", "(item_id, is_ordered)"),
                 # 前端列表分页：owner_id 过滤 + 按 publish_time 排序
                 ("idx_lmi_owner_publish", "(owner_id, publish_time)"),
+                # 「采集商品自动下单」按用户配额取数：owner_id + is_ordered=0 + created_at>=窗口 + order_attempts<上限
+                (
+                    "idx_lmi_owner_order_pending",
+                    "(owner_id, is_ordered, created_at, order_attempts)",
+                ),
+                # 「采集商品卖家ID补全」按用户/任务两级配额取数：owner_id + monitor_task_id 分组统计 + created_at>=窗口
+                ("idx_lmi_owner_task_created", "(owner_id, monitor_task_id, created_at)"),
             ]
             for idx_name, idx_cols in lmi_query_indexes:
                 try:
