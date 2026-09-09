@@ -13,7 +13,7 @@ RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 WORKDIR /app
 
-RUN apt-get update && apt-get install -y curl ca-certificates gcc unzip \
+RUN apt-get update && apt-get install -y curl ca-certificates gcc \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
@@ -29,7 +29,6 @@ deps = tomllib.load(open('/app/websocket/pyproject.toml','rb')).get('project',{}
 open('/tmp/requirements.txt','w').write('\n'.join(deps))" && \
     pip install --no-cache-dir -r /tmp/requirements.txt
 
-# 在线安装 Chromium（构建时通过本机代理加速下载，见 deploy/RULES.md）
 RUN python -m playwright install --with-deps chromium
 RUN python -m patchright install --with-deps chromium
 
