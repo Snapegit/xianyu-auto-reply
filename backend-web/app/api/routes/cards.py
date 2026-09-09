@@ -30,6 +30,7 @@ class CardCreate(BaseModel):
     description: Optional[str] = None
     enabled: Optional[bool] = True
     delay_seconds: Optional[int] = 0
+    use_no_logistics_form: bool = False
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = False  # 是否可对接
     is_public: Optional[bool] = False  # 是否公共卡券（所有用户可见可绑定）
@@ -53,6 +54,7 @@ class CardUpdate(BaseModel):
     description: Optional[str] = None
     enabled: Optional[bool] = None
     delay_seconds: Optional[int] = None
+    use_no_logistics_form: Optional[bool] = None
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = None  # 是否可对接
     is_public: Optional[bool] = None  # 是否公共卡券（所有用户可见可绑定）
@@ -81,6 +83,7 @@ class BatchSaveCardRequest(BaseModel):
     description: Optional[str] = None
     enabled: Optional[bool] = True
     delay_seconds: Optional[int] = 0
+    use_no_logistics_form: bool = False
     price: Optional[str] = None  # 对接价格
     is_dockable: Optional[bool] = False  # 是否可对接
     is_public: Optional[bool] = False  # 是否公共卡券（所有用户可见可绑定）
@@ -263,6 +266,7 @@ async def create_card(
             description=card_data.description,
             enabled=card_data.enabled or True,
             delay_seconds=card_data.delay_seconds or 0,
+            use_no_logistics_form=card_data.use_no_logistics_form,
             price=card_data.price,
             is_dockable=card_data.is_dockable or False,
             is_public=card_data.is_public or False,
@@ -479,6 +483,7 @@ async def batch_save_card(
             description=request.description,
             enabled=request.enabled or True,
             delay_seconds=request.delay_seconds or 0,
+            use_no_logistics_form=request.use_no_logistics_form,
             price=request.price,
             is_dockable=request.is_dockable or False,
             is_public=request.is_public or False,
