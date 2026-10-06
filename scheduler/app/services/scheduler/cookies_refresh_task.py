@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
 from loguru import logger
-from sqlalchemy import select, desc
+from sqlalchemy import select, desc, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from common.db.session import async_session_maker
@@ -39,6 +39,8 @@ from app.services.cookies_refresh_browser_service import cookies_refresh_browser
 _CONSECUTIVE_FAILURE_THRESHOLD = 10
 # 视为禁用的账号状态集合
 _DISABLED_STATUSES = {"inactive", "disabled", "suspended"}
+# 手动禁用的原因标记（由 backend-web/app/api/routes/cookies.py 写入）
+_MANUAL_DISABLE_REASON = "手动禁用"
 
 
 @dataclass(slots=True)
@@ -103,14 +105,38 @@ class CookiesRefreshTaskService:
         return now + timedelta(seconds=random.randint(60, 300))
 
     async def _get_eligible_accounts(self, session: AsyncSession) -> list[XYAccount]:
-        """查询所有未删除的账号（包含启用和禁用状态）。"""
+        """查询待续期账号：所有未删除账号，但排除手动禁用的账号。
+
+        手动禁用（disable_reason=_MANUAL_DISABLE_REASON）表示用户主动停用该账号，
+        目的是让其不占用服务器 IP / 流量，需要时再手动启动。这类账号必须完全跳过：
+        - 不进入本任务，避免启动 Playwright 访问闲鱼消耗 IP
+        - 也不会走到 _enable_account_after_refresh 被自动启用
+
+        系统因风控/登录失败/用户到期而禁用的账号（disable_reason 为其他值）不受影响，
+        仍会正常续期并在成功后自动恢复启用。
+        """
         stmt = (
             select(XYAccount)
-            .where(XYAccount.status != "deleted")
+            .where(
+                XYAccount.status != "deleted",
+                or_(
+                    XYAccount.disable_reason.is_(None),
+                    XYAccount.disable_reason != _MANUAL_DISABLE_REASON,
+                ),
+            )
             .order_by(XYAccount.id.asc())
         )
         result = await session.execute(stmt)
         return list(result.scalars().all())
+
+    async def _count_manual_disabled_accounts(self, session: AsyncSession) -> int:
+        """统计被本任务跳过的手动禁用账号数量，仅用于日志说明。"""
+        stmt = select(XYAccount.id).where(
+            XYAccount.status != "deleted",
+            XYAccount.disable_reason == _MANUAL_DISABLE_REASON,
+        )
+        result = await session.execute(stmt)
+        return len(list(result.scalars().all()))
 
     def _is_disabled_account(self, account: XYAccount) -> bool:
         """判断账号是否处于禁用状态。"""
@@ -321,6 +347,14 @@ class CookiesRefreshTaskService:
                 f"【{self.task_name}】共获取到 {len(accounts)} 个账号"
                 f"（启用 {active_count} 个，禁用 {disabled_count} 个）"
             )
+
+            # 手动禁用账号本轮不处理，明确记录数量便于确认效果
+            manual_disabled_skipped = await self._count_manual_disabled_accounts(session)
+            if manual_disabled_skipped > 0:
+                logger.info(
+                    f"【{self.task_name}】跳过 {manual_disabled_skipped} 个手动禁用账号"
+                    f"（不启动浏览器、不消耗 IP、不自动启用）"
+                )
 
             for account in accounts:
                 is_disabled = self._is_disabled_account(account)

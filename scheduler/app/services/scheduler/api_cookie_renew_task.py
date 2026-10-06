@@ -37,6 +37,8 @@ ACCOUNT_REQUEST_INTERVAL_SECONDS = 1
 MAX_RESPONSE_CONTENT_LENGTH = 2000
 # 视为"禁用"的账号状态集合
 _DISABLED_STATUSES = {"inactive", "disabled", "suspended"}
+# 手动禁用的原因标记（由 backend-web/app/api/routes/cookies.py 写入）
+_MANUAL_DISABLE_REASON = "手动禁用"
 
 
 @dataclass(slots=True)
@@ -103,10 +105,17 @@ class ApiCookieRenewTaskService:
 
                         await self._log_result(session, batch_id, account.account_id, result)
 
-                        # 续期成功后重新读取账号最新状态，若期间被并发改为禁用则自动启用
+                        # 续期成功后重新读取账号最新状态，若期间被并发改为禁用则自动启用。
+                        # 手动禁用的账号不在本任务的处理范围内（_get_eligible_accounts
+                        # 只查 status=='active'），这里出现的禁用只可能是系统自动禁用
+                        # （风控/登录失败/用户到期），续期成功后应恢复启用。
+                        # 若用户在任务运行期间手动禁用了该账号，则尊重用户意图不自动启用。
                         if result.status in ("success", "cookie_updated", "browser_renewed"):
                             await session.refresh(account)
-                            if self._is_disabled_account(account):
+                            if (
+                                self._is_disabled_account(account)
+                                and not self._is_manually_disabled(account)
+                            ):
                                 await self._enable_account_after_renew(session, account)
                     except Exception as exc:
                         await session.rollback()
@@ -182,6 +191,14 @@ class ApiCookieRenewTaskService:
     def _is_disabled_account(self, account: XYAccount) -> bool:
         """判断账号是否处于禁用状态。"""
         return (account.status or "").strip().lower() in _DISABLED_STATUSES
+
+    def _is_manually_disabled(self, account: XYAccount) -> bool:
+        """判断账号是否为主动手动禁用。
+
+        手动禁用表示用户主动停用该账号以避免占用服务器 IP / 流量，
+        需要时再手动启动。这类账号不应被定时任务自动启用。
+        """
+        return (account.disable_reason or "").strip() == _MANUAL_DISABLE_REASON
 
     async def _enable_account_after_renew(
         self,

@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 
 from loguru import logger
-from sqlalchemy import select
+from sqlalchemy import select, or_
 
 from common.db.session import async_session_maker
 from common.models.xy_account import XYAccount
@@ -20,6 +20,8 @@ from common.utils.time_utils import get_beijing_now_naive
 
 # 禁用账号超过该天数（基于更新时间）后才清理其浏览器数据
 DISABLED_RETENTION_DAYS = 10
+# 手动禁用的原因标记（由 backend-web/app/api/routes/cookies.py 写入）
+_MANUAL_DISABLE_REASON = "手动禁用"
 
 
 class CleanupBrowserDataTaskService:
@@ -94,10 +96,14 @@ class CleanupBrowserDataTaskService:
     async def _get_disabled_accounts(self) -> list[str]:
         """
         获取所有被禁用且超过保留天数未变更的账号ID列表
-        
+
         判断条件：status='disabled' 且 updated_at <= (当前北京时间 - 保留天数)
-        即账号已被禁用，且更新日期已超过 DISABLED_RETENTION_DAYS 天没有变化
-        
+        且 disable_reason != 手动禁用
+
+        排除手动禁用账号的原因：手动禁用是用户主动停用以节省服务器 IP / 流量，
+        用户随时可能重新启动。清理其浏览器数据会导致重启后丢失原有浏览器状态，
+        与用户意图不符。系统自动禁用（风控/登录失败/用户到期）不受此限制。
+
         Returns:
             符合条件的账号ID列表
         """
@@ -106,10 +112,14 @@ class CleanupBrowserDataTaskService:
             cutoff_time = get_beijing_now_naive() - timedelta(days=DISABLED_RETENTION_DAYS)
             
             async with async_session_maker() as session:
-                # 查询status='disabled'且更新时间在截止时间之前的账号
+                # 查询status='disabled'、超期且非手动禁用的账号
                 stmt = select(XYAccount.account_id).where(
                     XYAccount.status == "disabled",
                     XYAccount.updated_at <= cutoff_time,
+                    or_(
+                        XYAccount.disable_reason.is_(None),
+                        XYAccount.disable_reason != _MANUAL_DISABLE_REASON,
+                    ),
                 )
                 result = await session.execute(stmt)
                 account_ids = [row[0] for row in result.fetchall()]
