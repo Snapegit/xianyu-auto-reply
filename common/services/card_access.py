@@ -171,7 +171,8 @@ class CardAccess:
         for value in normalized:
             card = by_id[value["card_id"]]
             if value["source"] == "own":
-                if card.user_id != user_id:
+                # 公共卡券允许所有用户绑定到自己的商品
+                if card.user_id != user_id and not card.is_public:
                     raise CardAccessError("卡券不存在或无权操作")
                 continue
             dock = docks.get(value["dock_record_id"])

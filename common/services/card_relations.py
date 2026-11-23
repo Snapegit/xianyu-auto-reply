@@ -52,7 +52,9 @@ class CardRelations:
 
     async def get_card_item_ids(self, card_id: int, user_id: int | None) -> list[str]:
         """获取授权卡券的本人有效关联；管理员可读取该卡所有关联。"""
-        card = (await CardAccess(self.session).require_cards([card_id], user_id))[0]
+        card = (await CardAccess(self.session).require_cards([card_id], None))[0]
+        if user_id is not None and card.user_id != user_id and not card.is_public:
+            raise CardAccessError("卡券不存在或无权操作")
         stmt = select(CardItemRelation.item_id).join(Card, Card.id == CardItemRelation.card_id).where(
             CardItemRelation.card_id == card_id, CardItemRelation.is_deleted.is_(False),
             relation_access_condition(),
@@ -221,7 +223,10 @@ class CardRelations:
     async def batch_bind_cards_to_items(self, user_id: int, card_ids, item_ids) -> dict[str, int]:
         """验证全部自有卡券和商品后绑定；任何越权均使整组请求失败。"""
         access = CardAccess(self.session)
-        cards = await access.require_cards(card_ids, user_id, lock=True)
+        cards = await access.require_cards(card_ids, None, lock=True)
+        # 自有卡券或公共卡券均可绑定；其余卡券一律拒绝
+        if any(card.user_id != user_id and not card.is_public for card in cards):
+            raise CardAccessError("卡券不存在或无权操作")
         ids = await access.require_items(item_ids, user_id)
         values = [{"card_id": card.id, "source": "own", "dock_record_id": 0} for card in cards]
         added = await self._upsert_bindings(user_id, list(product(ids, values)))
