@@ -25,11 +25,16 @@ dependencies = [
     "idna>=3.6",
     "certifi>=2023.11.0",
     "python-dateutil>=2.8.0",
+    # common 模块的邮箱校验依赖（email_domain_policy 等共享模块需要）
+    "email-validator>=2.1.0",
     "python-jose[cryptography]==3.3.0",
     "passlib[bcrypt]==1.7.4",
     "bcrypt==5.0.0",
     "playwright",
     "Pillow>=10.0.0",
+    # 公共单品发布的图片/视频模块依赖，与网页后端保持一致。
+    "pycryptodome>=3.19.0",
+    "opencv-python-headless>=4.10.0",
 ]
 
 [build-system]
