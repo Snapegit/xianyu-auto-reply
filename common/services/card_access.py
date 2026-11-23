@@ -54,7 +54,8 @@ def relation_access_condition():
     dock = aliased(DockRecord)
     own = and_(
         or_(CardItemRelation.source.is_(None), CardItemRelation.source == "own"),
-        Card.user_id == CardItemRelation.user_id,
+        # 自有卡券或公共卡券均允许按商品关联读取
+        or_(Card.user_id == CardItemRelation.user_id, Card.is_public.is_(True)),
         or_(CardItemRelation.dock_record_id.is_(None), CardItemRelation.dock_record_id == 0),
     )
     dock_valid = exists(select(dock.id).where(
