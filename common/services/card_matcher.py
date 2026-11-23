@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from loguru import logger
-from sqlalchemy import exists, select
+from sqlalchemy import exists, or_, select
 from sqlalchemy.orm import load_only
 
 from common.models.card import Card
@@ -28,7 +28,13 @@ class CardMatcher(CardRelations, CardSerializationMixin):
             Card.is_deleted.is_(False), relation_access_condition(),
         )
         if user_id is not None:
-            stmt = stmt.where(CardItemRelation.user_id == user_id)
+            # 公共卡券可被任意用户绑定到商品；关联记录里的 user_id 是绑定操作人，
+            # 可能与商品归属人不同（管理员可管理所有商品）。只按关联人过滤会把
+            # 管理员绑定的公共卡券全部漏掉，导致商品列表显示"未配置"。
+            stmt = stmt.where(or_(
+                CardItemRelation.user_id == user_id,
+                Card.is_public.is_(True),
+            ))
         if enabled:
             stmt = stmt.where(Card.enabled.is_(True))
         if lite:
