@@ -27,6 +27,14 @@ async def ensure_card_schema(conn: AsyncConnection) -> None:
         try:
             await conn.execute(text(ddl))
         except Exception:
+            # 三个服务并发启动时，另一个进程可能刚好补齐同一列；重查确认后视为成功。
+            check = await conn.execute(text(
+                "SELECT COUNT(*) FROM information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA=DATABASE() AND TABLE_NAME=:table_name AND COLUMN_NAME=:column_name"
+            ), {"table_name": table_name, "column_name": column_name})
+            if check.scalar():
+                logger.info("卡券字段已存在（并发补齐）: table={} column={}", table_name, column_name)
+                continue
             logger.exception("卡券字段补齐失败，禁止继续启动: table={} column={}", table_name, column_name)
             raise
         logger.info("卡券字段补齐完成: table={} column={}", table_name, column_name)

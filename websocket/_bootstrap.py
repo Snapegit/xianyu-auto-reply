@@ -31,6 +31,7 @@ from app.api.routes import cookies_refresh, internal, password_login
 from app.services.account_startup import AccountStartup
 from app.services.service_health import check_database_connection
 from app.services.xianyu.cookie_manager import get_manager
+from common.db.card_schema import ensure_card_schema
 from common.db.init_database import ddl_connection, init_advisory_lock
 from common.db.notification_schema import ensure_notification_schema
 from common.db.redis_client import close_redis_client, initialize_redis_client
@@ -75,6 +76,7 @@ async def lifespan(app: FastAPI):
     try:
         async with init_advisory_lock():
             async with ddl_connection() as conn:
+                await ensure_card_schema(conn)
                 await ensure_notification_schema(conn)
     except Exception:
         logger.exception("通知模块数据库结构自检失败，WebSocket服务退出")

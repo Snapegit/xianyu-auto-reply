@@ -25,6 +25,7 @@ from fastapi.responses import JSONResponse
 from loguru import logger
 
 from app.core.config import get_settings
+from common.db.card_schema import ensure_card_schema
 from common.db.init_database import ddl_connection, init_advisory_lock
 from common.db.notification_schema import ensure_monitor_email_operation
 from common.db.redis_client import close_redis_client, initialize_redis_client
@@ -82,6 +83,7 @@ async def lifespan(app: FastAPI):
     try:
         async with init_advisory_lock():
             async with ddl_connection() as conn:
+                await ensure_card_schema(conn)
                 await ensure_scheduled_publish_rule_schema(conn)
                 await ensure_monitor_email_operation(conn)
     except Exception:
