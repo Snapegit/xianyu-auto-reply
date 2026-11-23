@@ -28,6 +28,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl ca-certificates \
         fonts-dejavu-core fonts-liberation \
+        libatomic1 \
     && update-ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
