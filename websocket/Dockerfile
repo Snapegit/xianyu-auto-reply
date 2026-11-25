@@ -10,6 +10,9 @@
 
 # 基础镜像走 docker.io 官方名（由 buildx 的 buildkitd 镜像加速配置拉取，见流水线 BUILDKIT 配置）
 FROM python:3.11-slim
+ARG HTTP_PROXY
+ARG HTTPS_PROXY
+ENV PLAYWRIGHT_DOWNLOAD_HOST=https://cdn.playwright.dev
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 ENV PIP_DISABLE_PIP_VERSION_CHECK=1
@@ -18,8 +21,8 @@ ENV PYTHONPATH=/app
 ENV TZ=Asia/Shanghai
 
 # 配置国内镜像源
-RUN sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
-    sed -i 's|deb.debian.org|mirrors.aliyun.com|g' /etc/apt/sources.list 2>/dev/null || true
+RUN sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list.d/debian.sources 2>/dev/null || \
+    sed -i 's|deb.debian.org|mirrors.ustc.edu.cn|g' /etc/apt/sources.list 2>/dev/null || true
 RUN pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
 
 WORKDIR /app
@@ -50,8 +53,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends gcc libc6-dev \
     && rm -rf /var/lib/apt/lists/* /root/.cache
 
 # 浏览器：playwright 安装系统依赖，patchright 复用同一套依赖，避免第二次 apt
-RUN python -m playwright install --with-deps chromium \
-    && python -m patchright install chromium \
+RUN HTTPS_PROXY=${HTTPS_PROXY} https_proxy=${HTTPS_PROXY} HTTP_PROXY=${HTTP_PROXY} http_proxy=${HTTP_PROXY} NO_PROXY=mirrors.ustc.edu.cn no_proxy=mirrors.ustc.edu.cn python -m playwright install --with-deps chromium \
+    && HTTPS_PROXY=${HTTPS_PROXY} https_proxy=${HTTPS_PROXY} HTTP_PROXY=${HTTP_PROXY} http_proxy=${HTTP_PROXY} python -m patchright install chromium \
     && rm -rf /var/lib/apt/lists/* /root/.cache/ms-playwright/.links
 
 # 创建目录
